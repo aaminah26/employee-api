@@ -27,6 +27,18 @@ def get_employees(db: Session = Depends(get_db)):
     return db.query(Employee).all()
 
 
+# GET SINGLE EMPLOYEE
+@router.get("/{id}")
+def get_employee(id: int, db: Session = Depends(get_db)):
+
+    emp = db.query(Employee).filter(Employee.id == id).first()
+
+    if not emp:
+        raise HTTPException(status_code=404, detail="Employee not found")
+
+    return emp
+
+
 # CREATE EMPLOYEE
 @router.post("/")
 def create_employee(
@@ -65,13 +77,34 @@ def update_employee(
     current_user: User = Depends(get_current_user)
 ):
 
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Admin only")
-
     emp = db.query(Employee).filter(Employee.id == id).first()
 
     if not emp:
         raise HTTPException(status_code=404, detail="Employee not found")
+
+    # ADMIN CAN EDIT ANYONE
+    if current_user.role == "admin":
+
+        emp.name = employee.name
+        emp.email = employee.email
+        emp.department_id = employee.department_id
+        emp.designation = employee.designation
+        emp.phone = employee.phone
+
+        db.commit()
+        db.refresh(emp)
+
+        return {
+            "message": "Employee updated successfully",
+            "employee": emp
+        }
+
+    # USER CAN EDIT ONLY OWN PROFILE
+    if current_user.username != emp.name:
+        raise HTTPException(
+            status_code=403,
+            detail="You can edit only your own profile"
+        )
 
     emp.name = employee.name
     emp.email = employee.email
@@ -83,7 +116,7 @@ def update_employee(
     db.refresh(emp)
 
     return {
-        "message": "Employee updated successfully",
+        "message": "Profile updated successfully",
         "employee": emp
     }
 
